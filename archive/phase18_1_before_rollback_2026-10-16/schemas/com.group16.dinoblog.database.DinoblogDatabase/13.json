@@ -1,0 +1,1182 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 13,
+    "identityHash": "60c9deab83ad5cf30a8ae3600570f8f9",
+    "entities": [
+      {
+        "tableName": "messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`messageId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `receiverId` TEXT NOT NULL, `payload` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `ttl` INTEGER NOT NULL, `status` TEXT NOT NULL, `expiresAt` INTEGER NOT NULL DEFAULT 0, `hopCount` INTEGER NOT NULL DEFAULT 0, `hopLimit` INTEGER NOT NULL DEFAULT 8, `carrierId` TEXT, `copiesRemaining` INTEGER NOT NULL DEFAULT 1, `reservedCopies` INTEGER NOT NULL DEFAULT 0, `contentType` TEXT NOT NULL DEFAULT 'TEXT', `mediaId` TEXT, `reservedPeerId` TEXT, `signatureVersion` INTEGER, `originPublicKey` TEXT, `originPublicKeyFingerprint` TEXT, `contentDigest` TEXT, `originSignature` TEXT, `signedMediaMimeType` TEXT, `signedMediaFileSize` INTEGER, `signedMediaSha256` TEXT, `deliveryAttempted` INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(`messageId`))",
+        "fields": [
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "senderId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationId",
+            "columnName": "receiverId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ttl",
+            "columnName": "ttl",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAt",
+            "columnName": "expiresAt",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "hopCount",
+            "columnName": "hopCount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "hopLimit",
+            "columnName": "hopLimit",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "8"
+          },
+          {
+            "fieldPath": "carrierId",
+            "columnName": "carrierId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "copiesRemaining",
+            "columnName": "copiesRemaining",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "reservedCopies",
+            "columnName": "reservedCopies",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "contentType",
+            "columnName": "contentType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'TEXT'"
+          },
+          {
+            "fieldPath": "mediaId",
+            "columnName": "mediaId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reservedPeerId",
+            "columnName": "reservedPeerId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "signatureVersion",
+            "columnName": "signatureVersion",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "originPublicKey",
+            "columnName": "originPublicKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originPublicKeyFingerprint",
+            "columnName": "originPublicKeyFingerprint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "contentDigest",
+            "columnName": "contentDigest",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originSignature",
+            "columnName": "originSignature",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "signedMediaMimeType",
+            "columnName": "signedMediaMimeType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "signedMediaFileSize",
+            "columnName": "signedMediaFileSize",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "signedMediaSha256",
+            "columnName": "signedMediaSha256",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deliveryAttempted",
+            "columnName": "deliveryAttempted",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "messageId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_messages_receiverId_status",
+            "unique": false,
+            "columnNames": [
+              "receiverId",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_receiverId_status` ON `${TABLE_NAME}` (`receiverId`, `status`)"
+          },
+          {
+            "name": "index_messages_timestamp",
+            "unique": false,
+            "columnNames": [
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
+          }
+        ]
+      },
+      {
+        "tableName": "peers",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`deviceId` TEXT NOT NULL, `name` TEXT NOT NULL, `lastSeen` INTEGER NOT NULL, `localAlias` TEXT DEFAULT NULL, PRIMARY KEY(`deviceId`))",
+        "fields": [
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeen",
+            "columnName": "lastSeen",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localAlias",
+            "columnName": "localAlias",
+            "affinity": "TEXT",
+            "defaultValue": "NULL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "deviceId"
+          ]
+        }
+      },
+      {
+        "tableName": "delivery_receipts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`originalMessageId` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `destinationId` TEXT NOT NULL, `deliveredAt` INTEGER NOT NULL, `originalExpiresAt` INTEGER NOT NULL, `createdByDeviceId` TEXT NOT NULL, `signatureVersion` INTEGER, `destinationPublicKey` TEXT, `destinationPublicKeyFingerprint` TEXT, `destinationSignature` TEXT, PRIMARY KEY(`originalMessageId`))",
+        "fields": [
+          {
+            "fieldPath": "originalMessageId",
+            "columnName": "originalMessageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationId",
+            "columnName": "destinationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deliveredAt",
+            "columnName": "deliveredAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalExpiresAt",
+            "columnName": "originalExpiresAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdByDeviceId",
+            "columnName": "createdByDeviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signatureVersion",
+            "columnName": "signatureVersion",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "destinationPublicKey",
+            "columnName": "destinationPublicKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "destinationPublicKeyFingerprint",
+            "columnName": "destinationPublicKeyFingerprint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "destinationSignature",
+            "columnName": "destinationSignature",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "originalMessageId"
+          ]
+        }
+      },
+      {
+        "tableName": "delivery_predictabilities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`destinationDeviceId` TEXT NOT NULL, `predictability` REAL NOT NULL, `lastUpdatedAt` INTEGER NOT NULL, PRIMARY KEY(`destinationDeviceId`))",
+        "fields": [
+          {
+            "fieldPath": "destinationDeviceId",
+            "columnName": "destinationDeviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "predictability",
+            "columnName": "predictability",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedAt",
+            "columnName": "lastUpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "destinationDeviceId"
+          ]
+        }
+      },
+      {
+        "tableName": "media",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mediaId` TEXT NOT NULL, `messageId` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `destinationId` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `originalFileName` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `sha256` TEXT NOT NULL, `chunkSize` INTEGER NOT NULL, `totalChunks` INTEGER NOT NULL, `receivedChunks` TEXT NOT NULL, `isComplete` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `expiresAt` INTEGER NOT NULL, `messageJson` TEXT NOT NULL, `lastUpdatedAt` INTEGER NOT NULL, `mediaType` TEXT NOT NULL DEFAULT 'IMAGE', `durationMs` INTEGER, `width` INTEGER, `height` INTEGER, PRIMARY KEY(`mediaId`))",
+        "fields": [
+          {
+            "fieldPath": "mediaId",
+            "columnName": "mediaId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationId",
+            "columnName": "destinationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalFileName",
+            "columnName": "originalFileName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSize",
+            "columnName": "fileSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chunkSize",
+            "columnName": "chunkSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalChunks",
+            "columnName": "totalChunks",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedChunks",
+            "columnName": "receivedChunks",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isComplete",
+            "columnName": "isComplete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAt",
+            "columnName": "expiresAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageJson",
+            "columnName": "messageJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedAt",
+            "columnName": "lastUpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaType",
+            "columnName": "mediaType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'IMAGE'"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "width",
+            "columnName": "width",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "mediaId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_media_messageId",
+            "unique": true,
+            "columnNames": [
+              "messageId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_media_messageId` ON `${TABLE_NAME}` (`messageId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "online_message_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`messageId` TEXT NOT NULL, `state` TEXT NOT NULL, `serverAcceptedAt` INTEGER, PRIMARY KEY(`messageId`))",
+        "fields": [
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverAcceptedAt",
+            "columnName": "serverAcceptedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "messageId"
+          ]
+        }
+      },
+      {
+        "tableName": "experiment_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`experimentId` TEXT NOT NULL, `label` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `routingMode` TEXT NOT NULL, `transportMode` TEXT NOT NULL, `deviceHash` TEXT NOT NULL, `appVersion` TEXT NOT NULL, `buildType` TEXT NOT NULL, `nodeCount` INTEGER, `messageCountTarget` INTEGER, `notes` TEXT NOT NULL, `bytesSent` INTEGER NOT NULL, `bytesReceived` INTEGER NOT NULL, `mediaBytesSent` INTEGER NOT NULL, `mediaBytesReceived` INTEGER NOT NULL, `dtnControlBytesSent` INTEGER NOT NULL, `dtnPayloadBytesSent` INTEGER NOT NULL, `onlineControlBytesSent` INTEGER NOT NULL, `onlinePayloadBytesSent` INTEGER NOT NULL, `currentBufferBytes` INTEGER NOT NULL, `peakBufferBytes` INTEGER NOT NULL, `partialMediaBytes` INTEGER NOT NULL, PRIMARY KEY(`experimentId`))",
+        "fields": [
+          {
+            "fieldPath": "experimentId",
+            "columnName": "experimentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAt",
+            "columnName": "endedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "routingMode",
+            "columnName": "routingMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "transportMode",
+            "columnName": "transportMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceHash",
+            "columnName": "deviceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appVersion",
+            "columnName": "appVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "buildType",
+            "columnName": "buildType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nodeCount",
+            "columnName": "nodeCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "messageCountTarget",
+            "columnName": "messageCountTarget",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesSent",
+            "columnName": "bytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bytesReceived",
+            "columnName": "bytesReceived",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaBytesSent",
+            "columnName": "mediaBytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaBytesReceived",
+            "columnName": "mediaBytesReceived",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dtnControlBytesSent",
+            "columnName": "dtnControlBytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dtnPayloadBytesSent",
+            "columnName": "dtnPayloadBytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "onlineControlBytesSent",
+            "columnName": "onlineControlBytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "onlinePayloadBytesSent",
+            "columnName": "onlinePayloadBytesSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentBufferBytes",
+            "columnName": "currentBufferBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "peakBufferBytes",
+            "columnName": "peakBufferBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "partialMediaBytes",
+            "columnName": "partialMediaBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "experimentId"
+          ]
+        }
+      },
+      {
+        "tableName": "experiment_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`eventId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `experimentId` TEXT NOT NULL, `eventTime` INTEGER NOT NULL, `elapsedRealtimeMs` INTEGER NOT NULL, `eventType` TEXT NOT NULL, `messageId` TEXT, `mediaId` TEXT, `localDeviceHash` TEXT NOT NULL, `peerDeviceHash` TEXT, `routingMode` TEXT NOT NULL, `decision` TEXT, `bytes` INTEGER, `hopCount` INTEGER, `copiesRemaining` INTEGER, `bufferBytes` INTEGER, `contentType` TEXT, `transport` TEXT, `durationMs` INTEGER, `result` TEXT, `reason` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "eventId",
+            "columnName": "eventId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "experimentId",
+            "columnName": "experimentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventTime",
+            "columnName": "eventTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedRealtimeMs",
+            "columnName": "elapsedRealtimeMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventType",
+            "columnName": "eventType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mediaId",
+            "columnName": "mediaId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "localDeviceHash",
+            "columnName": "localDeviceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "peerDeviceHash",
+            "columnName": "peerDeviceHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "routingMode",
+            "columnName": "routingMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decision",
+            "columnName": "decision",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bytes",
+            "columnName": "bytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "hopCount",
+            "columnName": "hopCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "copiesRemaining",
+            "columnName": "copiesRemaining",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bufferBytes",
+            "columnName": "bufferBytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "contentType",
+            "columnName": "contentType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "transport",
+            "columnName": "transport",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "durationMs",
+            "columnName": "durationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "eventId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_experiment_events_experimentId_eventTime",
+            "unique": false,
+            "columnNames": [
+              "experimentId",
+              "eventTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_experiment_events_experimentId_eventTime` ON `${TABLE_NAME}` (`experimentId`, `eventTime`)"
+          }
+        ]
+      },
+      {
+        "tableName": "experiment_messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`experimentId` TEXT NOT NULL, `messageId` TEXT NOT NULL, `sourceHash` TEXT NOT NULL, `destinationHash` TEXT NOT NULL, `contentType` TEXT NOT NULL, `fileSizeBytes` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `deliveredAt` INTEGER, `receiptReceivedAt` INTEGER, `finalHopCount` INTEGER, `deliveryTransport` TEXT, `routingMode` TEXT NOT NULL, `finalStatus` TEXT NOT NULL, `createdLocally` INTEGER NOT NULL, PRIMARY KEY(`experimentId`, `messageId`))",
+        "fields": [
+          {
+            "fieldPath": "experimentId",
+            "columnName": "experimentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceHash",
+            "columnName": "sourceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationHash",
+            "columnName": "destinationHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentType",
+            "columnName": "contentType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSizeBytes",
+            "columnName": "fileSizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deliveredAt",
+            "columnName": "deliveredAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "receiptReceivedAt",
+            "columnName": "receiptReceivedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "finalHopCount",
+            "columnName": "finalHopCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "deliveryTransport",
+            "columnName": "deliveryTransport",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "routingMode",
+            "columnName": "routingMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalStatus",
+            "columnName": "finalStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdLocally",
+            "columnName": "createdLocally",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "experimentId",
+            "messageId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_experiment_messages_experimentId",
+            "unique": false,
+            "columnNames": [
+              "experimentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_experiment_messages_experimentId` ON `${TABLE_NAME}` (`experimentId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "peer_identity_bindings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`deviceId` TEXT NOT NULL, `publicKey` TEXT NOT NULL, `fingerprint` TEXT NOT NULL, `trustState` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastVerifiedAt` INTEGER NOT NULL, `verificationSource` TEXT NOT NULL, PRIMARY KEY(`deviceId`))",
+        "fields": [
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicKey",
+            "columnName": "publicKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fingerprint",
+            "columnName": "fingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trustState",
+            "columnName": "trustState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAt",
+            "columnName": "firstSeenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastVerifiedAt",
+            "columnName": "lastVerifiedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verificationSource",
+            "columnName": "verificationSource",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "deviceId"
+          ]
+        }
+      },
+      {
+        "tableName": "pending_security_receipts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`originalMessageId` TEXT NOT NULL, `receiptJson` TEXT NOT NULL, `receivedAt` INTEGER NOT NULL, PRIMARY KEY(`originalMessageId`))",
+        "fields": [
+          {
+            "fieldPath": "originalMessageId",
+            "columnName": "originalMessageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receiptJson",
+            "columnName": "receiptJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedAt",
+            "columnName": "receivedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "originalMessageId"
+          ]
+        }
+      },
+      {
+        "tableName": "message_recalls",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`messageId` TEXT NOT NULL, `state` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`messageId`))",
+        "fields": [
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "messageId"
+          ]
+        }
+      },
+      {
+        "tableName": "revokes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`revokeId` TEXT NOT NULL, `originalMessageId` TEXT NOT NULL, `originalSourceId` TEXT NOT NULL, `originalDestinationId` TEXT NOT NULL, `originalExpiresAt` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `retentionUntil` INTEGER NOT NULL, `signatureVersion` INTEGER NOT NULL, `sourcePublicKey` TEXT NOT NULL, `sourcePublicKeyFingerprint` TEXT NOT NULL, `sourceSignature` TEXT NOT NULL, `verificationState` TEXT NOT NULL, PRIMARY KEY(`revokeId`))",
+        "fields": [
+          {
+            "fieldPath": "revokeId",
+            "columnName": "revokeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalMessageId",
+            "columnName": "originalMessageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalSourceId",
+            "columnName": "originalSourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalDestinationId",
+            "columnName": "originalDestinationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalExpiresAt",
+            "columnName": "originalExpiresAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retentionUntil",
+            "columnName": "retentionUntil",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signatureVersion",
+            "columnName": "signatureVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePublicKey",
+            "columnName": "sourcePublicKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePublicKeyFingerprint",
+            "columnName": "sourcePublicKeyFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceSignature",
+            "columnName": "sourceSignature",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verificationState",
+            "columnName": "verificationState",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "revokeId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_revokes_originalMessageId",
+            "unique": true,
+            "columnNames": [
+              "originalMessageId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_revokes_originalMessageId` ON `${TABLE_NAME}` (`originalMessageId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "revoke_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resultId` TEXT NOT NULL, `revokeId` TEXT NOT NULL, `originalMessageId` TEXT NOT NULL, `originalSourceId` TEXT NOT NULL, `originalDestinationId` TEXT NOT NULL, `result` TEXT NOT NULL, `processedAt` INTEGER NOT NULL, `signatureVersion` INTEGER NOT NULL, `destinationPublicKey` TEXT NOT NULL, `destinationPublicKeyFingerprint` TEXT NOT NULL, `destinationSignature` TEXT NOT NULL, `verificationState` TEXT NOT NULL, PRIMARY KEY(`resultId`))",
+        "fields": [
+          {
+            "fieldPath": "resultId",
+            "columnName": "resultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revokeId",
+            "columnName": "revokeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalMessageId",
+            "columnName": "originalMessageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalSourceId",
+            "columnName": "originalSourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalDestinationId",
+            "columnName": "originalDestinationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processedAt",
+            "columnName": "processedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signatureVersion",
+            "columnName": "signatureVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationPublicKey",
+            "columnName": "destinationPublicKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationPublicKeyFingerprint",
+            "columnName": "destinationPublicKeyFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destinationSignature",
+            "columnName": "destinationSignature",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verificationState",
+            "columnName": "verificationState",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "resultId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_revoke_results_originalMessageId",
+            "unique": true,
+            "columnNames": [
+              "originalMessageId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_revoke_results_originalMessageId` ON `${TABLE_NAME}` (`originalMessageId`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '60c9deab83ad5cf30a8ae3600570f8f9')"
+    ]
+  }
+}

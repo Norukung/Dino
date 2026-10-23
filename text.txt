@@ -1,0 +1,75 @@
+Noteme — ข้อกำหนดและแนวทางการสร้างแอปพลิเคชัน
+
+Core Features
+
+1. User / Node ID
+- ผู้ใช้แต่ละเครื่องมี ID ของตัวเอง เช่น username + device/node ID
+- ใช้ ID เป็นปลายทางของข้อความ
+- ไม่ผูกกับ IP, Bluetooth address หรือ location
+
+2. Peer Discovery
+- แอปค้นหา device ใกล้เคียงผ่าน Bluetooth, Wi-Fi Direct หรือ Wi-Fi/Hotspot
+- เจอช่องทางไหนก่อนก็ใช้ช่องทางนั้นในการเชื่อมต่อ
+
+3. Direct Offline Chat
+- ถ้า A กับ B อยู่ใกล้กัน สามารถส่งข้อความถึงกันโดยตรงได้แม้ไม่มี Internet
+- รองรับข้อความสั้นก่อนเป็นหลัก
+
+4. Store–Carry–Forward
+- ถ้าปลายทางไม่อยู่ในระยะ ระบบเก็บข้อความไว้ในเครื่อง
+- เมื่อเจอ peer อื่น สามารถฝากข้อความให้ peer นั้นถือไปต่อ จนกว่าจะเจอปลายทาง
+
+5. Controlled Flooding / Epidemic Forwarding
+- เมื่อสองเครื่องเจอกัน จะแจกเฉพาะข้อความที่อีกฝ่ายยังไม่มี
+- ไม่ต้องรู้ว่าปลายทางอยู่ที่ไหน และไม่ต้องใช้ GPS หรือ map
+
+6. Message ID + Sequence Number
+- ทุกข้อความมี ID ไม่ซ้ำ เช่น A-000123
+- ใช้ตรวจว่าข้อความนี้เคยรับมาแล้วหรือยัง
+
+7. Duplicate Suppression
+- ถ้า device เคยเห็น message ID เดิมแล้ว จะไม่รับหรือ forward ซ้ำ
+- ป้องกันข้อความวนไปมาระหว่างหลายเครื่อง
+
+8. TTL
+- ทุกข้อความกำหนดอายุ เช่น 1 ชั่วโมง / 1 วัน
+- หมดอายุแล้วระบบลบ และไม่ flood ต่อไปเรื่อย ๆ
+
+9. Hop Count / Copy Limit
+- จำกัดจำนวนครั้งที่ message ถูก relay เช่นไม่เกิน 5 hops
+- หรือกำหนดจำนวนสำเนาสูงสุด เพื่อลดการ flood มากเกินไป
+
+10. Delivery Acknowledgement
+- เมื่อข้อความถึงปลายทางแล้ว ปลายทางสร้าง ACK
+- ACK สามารถถูก relay กลับแบบเดียวกัน เพื่อให้ต้นทางรู้ว่า delivered แล้ว
+
+11. Message Status
+- UI แสดงสถานะ เช่น Queued → Relayed → Delivered
+- อาจแสดงว่า Relayed via Node B และจำนวน hops
+
+12. Local Message Storage
+- Pending messages และ received messages ต้องเก็บใน local database
+- ปิดแอป/เปิดใหม่แล้วข้อความที่ยังไม่ส่งต้องไม่หาย
+
+Optional Features
+
+1. Transport Switching
+- Bluetooth ใช้ไม่ได้ → ลอง Wi-Fi Direct/Hotspot อัตโนมัติ
+- DTN logic ด้านบนไม่ต้องสนใจว่าข้อมูลส่งผ่าน transport อะไร
+
+2. Online Sync
+- เมื่อ Internet กลับมา สามารถ sync message/history กับ central server
+- ทำให้แอปเป็น Hybrid Online + Offline Messaging
+
+3. Priority Message
+- เช่น Normal / Urgent / Emergency
+- urgent message อาจได้ TTL ยาวหรือ copy limit มากกว่า
+
+Demo ที่ต้องทำ: 3 เครื่อง A, B, C และปิด Internet
+
+1. A ต้องการส่ง "Hello C" ให้ C แต่ A ติดต่อ C ไม่ได้
+2. A เจอ B → B รับและเก็บ message
+3. B เดินออกจาก A แล้วไปเจอ C
+4. B ส่ง message ต่อให้ C
+5. C ได้ข้อความ
+6. ถ้ามี ACK กลับภายหลัง A เห็น Delivered
