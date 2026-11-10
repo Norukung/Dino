@@ -12,7 +12,7 @@ import kotlinx.serialization.Transient
 enum class MessageStatus { PENDING, CARRIED, FORWARDED, DELIVERED, RECEIVED, EXPIRED }
 
 @Serializable
-enum class MessageContentType { TEXT, IMAGE }
+enum class MessageContentType { TEXT, IMAGE, AUDIO, VIDEO }
 
 @Serializable
 @Entity(tableName = "messages", indices = [Index(value = ["receiverId", "status"]), Index(value = ["timestamp"])])

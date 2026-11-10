@@ -1,6 +1,7 @@
 package com.group16.dinoblog.model
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
@@ -15,6 +16,10 @@ data class MediaManifest(
     val sha256: String,
     val chunkSize: Int,
     val totalChunks: Int,
+    val contentType: MessageContentType = MessageContentType.IMAGE,
+    val durationMs: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
 )
 
 /** File bytes live in files/dinoblog_media; this row is metadata and resume state only. */
@@ -30,16 +35,20 @@ data class MediaEntity(
     val sha256: String,
     val chunkSize: Int,
     val totalChunks: Int,
-    /** One 0/1 character per chunk, at most 40 for the Phase 11 limits. */
+    /** One 0/1 character per 128 KiB chunk. */
     val receivedChunks: String,
     val isComplete: Boolean,
     val createdAt: Long,
     val expiresAt: Long,
-    /** Serialized MESSAGE metadata for partial-transfer recovery; never contains image bytes. */
+    /** Serialized MESSAGE metadata for partial-transfer recovery; never contains media bytes. */
     val messageJson: String,
     val lastUpdatedAt: Long,
+    @ColumnInfo(defaultValue = "'IMAGE'") val contentType: MessageContentType = MessageContentType.IMAGE,
+    @ColumnInfo(defaultValue = "NULL") val durationMs: Long? = null,
+    @ColumnInfo(defaultValue = "NULL") val width: Int? = null,
+    @ColumnInfo(defaultValue = "NULL") val height: Int? = null,
 ) {
     val completedChunks: Int get() = receivedChunks.count { it == '1' }
     fun manifest() = MediaManifest(messageId, mediaId, mimeType, originalFileName,
-        fileSize, sha256, chunkSize, totalChunks)
+        fileSize, sha256, chunkSize, totalChunks, contentType, durationMs, width, height)
 }

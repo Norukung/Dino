@@ -54,6 +54,9 @@ fun NetworkDebugScreen(localId: String, localRelayEnabled: Boolean, network: Net
             Detail("TCP status", socket.status)
             Detail("Connection", if (socket.connected) "CONNECTED" else if (socket.awaitingHello) "TCP CONNECTED / WAITING FOR HELLO" else "DISCONNECTED")
             Detail("Connected Peer Device ID", socket.peerIdentityLabel)
+            Detail("DinoBlog Display Name", socket.peerName ?: "Unknown")
+            Detail("Full Device Name", network.peers.find { it.address == network.connectedDeviceAddress }?.name ?: "Device name unavailable")
+            Detail("Transport", "Wi-Fi Direct")
             Detail("Local relay enabled", localRelayEnabled.toString())
             Detail("Connected peer relay enabled", socket.peerRelayEnabled?.toString() ?: "Unknown")
             Detail("Group owner IP", network.groupOwnerIp ?: "—")
@@ -103,13 +106,13 @@ fun NetworkDebugScreen(localId: String, localRelayEnabled: Boolean, network: Net
             val active = socket.connected && socket.sessionId != null && forwarding.sessionId == socket.sessionId && forwarding.peerId == socket.peerId
             Detail("Forward candidates", if (active) forwarding.candidateIds.joinToString("\n").ifEmpty { "Empty" } else "None")
             Detail("DIRECT candidates", if (active) forwarding.directIds.joinToString("\n").ifEmpty { "Empty" } else "None")
-            Detail("SMART_SPRAY candidates", if (active) forwarding.relayIds.joinToString("\n").ifEmpty { "Empty" } else "None")
+            Detail("Relay candidates (SPRAY / SMART_SPRAY)", if (active) forwarding.relayIds.joinToString("\n").ifEmpty { "Empty" } else "None")
             Detail("WAIT IDs", forwarding.waitIds.joinToString("\n").ifEmpty { "Empty" })
             Detail("Initial spray budget", DtnConfig.INITIAL_SPRAY_COPIES.toString())
             val usage = messages.count { it.sourceId != localId && it.destinationId != localId &&
                 it.status == com.group16.dinoblog.model.MessageStatus.CARRIED && it.expiresAt > System.currentTimeMillis() &&
                 receipts.none { r -> r.originalMessageId == it.messageId } }
-            Detail("Active relay buffer", "$usage / ${DtnConfig.MAX_RELAY_BUFFER_MESSAGES}")
+            Detail("Bundles carried for other people", "$usage / ${DtnConfig.MAX_RELAY_BUFFER_MESSAGES}")
             Detail("Relay acceptance", if (localRelayEnabled) "ENABLED" else "DISABLED")
             Detail("Peer rejected IDs", forwarding.rejectedIds.joinToString("\n").ifEmpty { "Empty" })
             Detail("Last rejection", forwarding.lastRejectReason ?: "None")
@@ -119,21 +122,28 @@ fun NetworkDebugScreen(localId: String, localRelayEnabled: Boolean, network: Net
             Detail("Last forwarded message", if (active) forwarding.lastSentId ?: "None" else "None")
             Detail("Last forwarding type", if (active) forwarding.lastSentKind?.name ?: "None" else "None")
             Detail("Last ACK", if (active) forwarding.lastAckId ?: "None" else "None")
-            Text("DIRECT delivers even with one copy. SMART_SPRAY requires a current peer summary and a destination score better by the margin. WAIT preserves the budget. Scores never prove delivery.", style = MaterialTheme.typography.bodySmall)
+            Text("DIRECT delivers even with one copy. The source can deposit its first bounded relay copy with a willing peer; later SMART_SPRAY uses the current destination score. WAIT preserves the budget. Scores never prove delivery.", style = MaterialTheme.typography.bodySmall)
         } }
-        item { InfoCard("DTN image media") {
+        item { InfoCard("DTN media") {
             val relayBytes = media.filter { it.sourceId != localId && it.destinationId != localId }
                 .sumOf { it.fileSize }
             Detail("Relay media allocation", "$relayBytes / ${DtnConfig.MAX_RELAY_MEDIA_BYTES} bytes")
             Detail("Complete / partial", "${media.count { it.isComplete }} / ${media.count { !it.isComplete }}")
-            Detail("Chunk size / image limit", "${DtnConfig.IMAGE_CHUNK_BYTES} / ${DtnConfig.MAX_IMAGE_BYTES} bytes")
+            Detail("Chunk size", "${DtnConfig.IMAGE_CHUNK_BYTES} bytes")
+            Detail("Image / audio / video limits", "${DtnConfig.MAX_IMAGE_BYTES} / ${DtnConfig.MAX_AUDIO_BYTES} / ${DtnConfig.MAX_VIDEO_BYTES} bytes")
+            Detail("Last media event", logs.lastOrNull { it.detail.contains("MEDIA") }?.let { "${it.direction}: ${it.detail}" } ?: "None")
+            Detail("Last media rejection", logs.lastOrNull { it.detail.contains("MEDIA") && (it.detail.contains("REJECT") || it.detail.contains("FAILED")) }?.detail ?: "None")
         } }
         items(media, key = { "media-${it.mediaId}" }) { row ->
-            InfoCard(if (row.isComplete) "Verified image" else "Partial image") {
+            InfoCard(if (row.isComplete) "Verified ${row.contentType}" else "Partial ${row.contentType}") {
                 Detail("Message / media ID", "${row.messageId} / ${row.mediaId}")
+                Detail("Content type", row.contentType.name)
                 Detail("MIME / size", "${row.mimeType} / ${row.fileSize} bytes")
                 Detail("SHA-256", row.sha256)
                 Detail("Chunks", "${row.completedChunks} / ${row.totalChunks} at ${row.chunkSize} bytes")
+                Detail("Hash verified", row.isComplete.toString())
+                Detail("Transfer peer / direction", "${socket.peerName ?: "Unknown"} / ${if (row.sourceId == localId) "Outgoing" else "Incoming"}")
+                Detail("Resume chunks remaining", (row.totalChunks - row.completedChunks).toString())
                 Detail("Progress", "${row.completedChunks * 100 / row.totalChunks}%")
             }
         }
@@ -169,8 +179,8 @@ fun NetworkDebugScreen(localId: String, localRelayEnabled: Boolean, network: Net
                 Detail("createdAt / expiresAt", "${message.createdAt} / ${message.expiresAt} (Unix ms)")
                 Detail("Sender → receiver", "${message.senderId}\n→ ${message.receiverId}")
                 Detail("TTL / timestamp", "${message.ttl}s / ${message.timestamp} (Unix ms)")
-                if (message.contentType == com.group16.dinoblog.model.MessageContentType.IMAGE)
-                    Detail("Content", "IMAGE / ${message.mediaId}") else Text(message.payload)
+                if (message.contentType != com.group16.dinoblog.model.MessageContentType.TEXT)
+                    Detail("Content", "${message.contentType} / ${message.mediaId}") else Text(message.payload)
             }
         }
     }

@@ -29,7 +29,7 @@ class Phase9MigrationTest {
                 db.execSQL("INSERT INTO delivery_receipts(originalMessageId,sourceId,destinationId,deliveredAt,originalExpiresAt,createdByDeviceId) VALUES (?,?,?,2000,61000,?)", arrayOf(message, a, b, b))
                 db.execSQL("INSERT INTO delivery_predictabilities(destinationDeviceId,predictability,lastUpdatedAt) VALUES (?,0.75,1000)", arrayOf(b))
             }
-            migration.runMigrationsAndValidate(name, 8, true, DinoblogDatabase.MIGRATION_5_6, DinoblogDatabase.MIGRATION_6_7, DinoblogDatabase.MIGRATION_7_8).close()
+            migration.runMigrationsAndValidate(name, 9, true, DinoblogDatabase.MIGRATION_5_6, DinoblogDatabase.MIGRATION_6_7, DinoblogDatabase.MIGRATION_7_8, DinoblogDatabase.MIGRATION_8_9).close()
             val db = Room.databaseBuilder(context, DinoblogDatabase::class.java, name).build()
             try {
                 assertEquals("history", db.messages().get(message)?.payload)

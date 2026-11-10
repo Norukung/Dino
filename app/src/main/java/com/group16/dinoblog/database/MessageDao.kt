@@ -108,9 +108,10 @@ interface MessageDao {
           AND timestamp <= :now + 300000 AND expiresAt = timestamp + ttl * 1000
           AND ((contentType = 'TEXT' AND length(payload) BETWEEN 1 AND 4096
                 AND length(trim(payload, char(9,10,11,12,13,32))) > 0)
-               OR (contentType = 'IMAGE' AND mediaId IS NOT NULL AND EXISTS
+               OR (contentType IN ('IMAGE','AUDIO','VIDEO') AND mediaId IS NOT NULL AND EXISTS
                    (SELECT 1 FROM media WHERE media.mediaId = messages.mediaId
-                    AND media.messageId = messages.messageId AND media.isComplete = 1)))
+                    AND media.messageId = messages.messageId AND media.contentType = messages.contentType
+                    AND media.isComplete = 1)))
         ORDER BY messageId
     """)
     suspend fun inventoryCandidates(now: Long, includeKnown: Boolean = false): List<InventoryCandidate>

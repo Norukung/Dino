@@ -4,10 +4,12 @@ import android.net.Uri
 import com.group16.dinoblog.model.MediaEntity
 import com.group16.dinoblog.model.MediaManifest
 import com.group16.dinoblog.model.Message
+import com.group16.dinoblog.model.MessageContentType
 import com.group16.dinoblog.network.MessageRejectReason
 import kotlinx.coroutines.flow.Flow
 
-data class PreparedImage(val manifest: MediaManifest, val filePath: String)
+data class PreparedMedia(val manifest: MediaManifest, val filePath: String)
+typealias PreparedImage = PreparedMedia
 
 sealed interface MediaOffer {
     data class Accept(val missingChunks: List<Int>) : MediaOffer
@@ -24,9 +26,10 @@ sealed interface MediaChunkResult {
 interface MediaStore {
     val media: Flow<List<MediaEntity>>
     fun filePath(mediaId: String): String
-    suspend fun prepare(uri: Uri): PreparedImage
-    suspend fun discardPrepared(prepared: PreparedImage)
-    suspend fun queuePrepared(prepared: PreparedImage, source: String, destination: String, at: Long,
+    suspend fun verifiedForPlayback(mediaId: String): Boolean = false
+    suspend fun prepare(uri: Uri, type: MessageContentType = MessageContentType.IMAGE): PreparedMedia
+    suspend fun discardPrepared(prepared: PreparedMedia)
+    suspend fun queuePrepared(prepared: PreparedMedia, source: String, destination: String, at: Long,
         ttl: Long, hopLimit: Int, copies: Int): Message
     suspend fun manifest(messageId: String): MediaManifest?
     suspend fun readChunk(mediaId: String, index: Int): ByteArray?

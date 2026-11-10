@@ -70,7 +70,8 @@ class DeliveryEngine(
     private val mutableForwarding = MutableStateFlow(ForwardingState())
     val forwarding = mutableForwarding.asStateFlow()
     private data class Attempt(val peer: String, val session: String, val previousHop: Int, val destination: String, val at: Long,
-        val outgoing: Message? = null, val copiesGiven: Int = 0, val copiesKept: Int = 0)
+        val outgoing: Message? = null, val copiesGiven: Int = 0, val copiesKept: Int = 0,
+        val kind: ForwardingKind? = null)
     private val attempts = mutableMapOf<String, Attempt>()
     private val peerKnown = mutableSetOf<String>()
     private val peerKnownReceipts = mutableSetOf<String>()
@@ -131,7 +132,10 @@ class DeliveryEngine(
         return message
     }
 
-    suspend fun queueImage(receiverId: String, prepared: PreparedImage, allowRelay: Boolean = true): Message {
+    suspend fun queueImage(receiverId: String, prepared: PreparedImage, allowRelay: Boolean = true): Message =
+        queueMedia(receiverId, prepared, allowRelay)
+
+    suspend fun queueMedia(receiverId: String, prepared: PreparedImage, allowRelay: Boolean = true): Message {
         require(receiverId != localId && WireProtocol.isUuid(receiverId)) { "Choose a valid recipient" }
         val media = requireNotNull(mediaStore)
         val message = media.queuePrepared(prepared, localId, receiverId, now(),
@@ -166,7 +170,7 @@ class DeliveryEngine(
             if (message.sourceId != localId || message.hopCount != 0 || message.status != MessageStatus.PENDING) continue
             val kind = routingDecision(message, peerId, transport.state.value.sessionId) ?: continue
             if (kind == ForwardingKind.WAIT && !hasReservedSpray(message.messageId, peerId, transport.state.value.sessionId) &&
-                !(message.contentType == MessageContentType.IMAGE && message.reservedCopies > 0 && message.reservedPeerId == peerId)) continue
+                !(message.reservedCopies > 0 && message.reservedPeerId == peerId)) continue
             if (!sendCandidate(message, if (kind == ForwardingKind.WAIT) { if (smartRelaySelection) ForwardingKind.SMART_SPRAY else ForwardingKind.SPRAY } else kind,
                 peerId, transport.state.value.sessionId, inventoryGated = false)) break
         }
@@ -217,7 +221,7 @@ class DeliveryEngine(
                 continue
             }
             if (kind == ForwardingKind.WAIT && !hasReservedSpray(id, peer, session) &&
-                !(message.contentType == MessageContentType.IMAGE && message.reservedCopies > 0 && message.reservedPeerId == peer)) {
+                !(message.reservedCopies > 0 && message.reservedPeerId == peer)) {
                 waitIds += id
                 logger.log("DTN", "Candidate WAIT; copy budget or predictability gate", id)
                 continue
@@ -240,7 +244,7 @@ class DeliveryEngine(
             if (!isCurrentCandidate(id, peer, session)) continue
             val kind = routingDecision(message, peer, session) ?: continue
             if (kind == ForwardingKind.WAIT && !hasReservedSpray(id, peer, session) &&
-                !(message.contentType == MessageContentType.IMAGE && message.reservedCopies > 0 && message.reservedPeerId == peer)) continue
+                !(message.reservedCopies > 0 && message.reservedPeerId == peer)) continue
             val sent = sendCandidate(message, if (kind == ForwardingKind.WAIT) { if (smartRelaySelection) ForwardingKind.SMART_SPRAY else ForwardingKind.SPRAY } else kind, peer, session)
             if (!sent && !matches(peer, session)) return
         }
@@ -257,12 +261,12 @@ class DeliveryEngine(
         val token = session ?: "legacy"
         val prior = synchronized(forwardingLock) { attempts[id]?.takeIf { it.peer == peer && it.session == token } }
         if (inventoryGated && prior != null && now() - prior.at < 5000) return false
-        val resuming = selected.contentType == MessageContentType.IMAGE && selected.reservedCopies > 0 && selected.reservedPeerId == peer
+        val resuming = selected.reservedCopies > 0 && selected.reservedPeerId == peer
         val outgoing = prior?.outgoing ?: selected.copy(status = MessageStatus.PENDING,
             hopCount = selected.hopCount + 1,
             copiesRemaining = if (resuming) selected.reservedCopies else if (kind in listOf(ForwardingKind.SPRAY, ForwardingKind.SMART_SPRAY)) selected.copiesRemaining / 2 else selected.copiesRemaining)
-        val manifest = if (selected.contentType == MessageContentType.IMAGE) mediaStore?.manifest(id) else null
-        if (selected.contentType == MessageContentType.IMAGE && manifest == null) return false
+        val manifest = if (selected.contentType != MessageContentType.TEXT) mediaStore?.manifest(id) else null
+        if (selected.contentType != MessageContentType.TEXT && manifest == null) return false
         val packet = if (manifest == null) WirePacket(PacketType.MESSAGE, message = outgoing)
             else WirePacket(PacketType.MEDIA_MANIFEST, message = outgoing, manifest = manifest)
         suspend fun eligible(): Boolean {
@@ -281,7 +285,7 @@ class DeliveryEngine(
             if (spraying && smartRelaySelection && !remoteReady(peer, session)) return false
             if (spraying && prior == null && !resuming) {
                 if (classify(latest, localId, peer, now()) != ForwardingKind.SPRAY || latest.copiesRemaining != selected.copiesRemaining) return false
-                val reservation = if (smartRelaySelection) predictabilityStore?.reserveSmartSpray(id, localId, peer,
+                val reservation = if (smartRelaySelection && kind == ForwardingKind.SMART_SPRAY) predictabilityStore?.reserveSmartSpray(id, localId, peer,
                     selected.copiesRemaining, remoteScore(latest.destinationId, peer, session), now())
                     else store.reserveSpray(id, localId, peer, selected.copiesRemaining, now())
                 if (reservation == null) {
@@ -295,10 +299,14 @@ class DeliveryEngine(
                     if (current()) mutableForwarding.value = mutableForwarding.value.copy(lastCopiesGiven = given, lastCopiesKept = kept)
                 }
             } else if (kind == ForwardingKind.DIRECT && latest.destinationId != peer) return false
-            if (spraying && smartRelaySelection && !resuming) {
-                val score = predictabilityStore?.predictability(latest.destinationId, now())
-                if (score == null || !PredictabilityPolicy.better(score, remoteScore(latest.destinationId, peer, session))) {
-                    if (prior == null && given > 0) store.restoreSpray(id, kept, given)
+            if (spraying && smartRelaySelection && !resuming && prior == null) {
+                val score = predictabilityStore?.predictability(latest.destinationId, now()) ?: 0.0
+                val peerScore = remoteScore(latest.destinationId, peer, session)
+                val stillEligible = if (kind == ForwardingKind.SMART_SPRAY)
+                    PredictabilityPolicy.better(score, peerScore)
+                else firstSourceDeposit(latest, score, peerScore, peer, session)
+                if (!stillEligible) {
+                    if (given > 0) store.restoreSpray(id, kept, given)
                     return false
                 }
             }
@@ -308,7 +316,8 @@ class DeliveryEngine(
                 if (spraying && prior == null && given > 0) store.restoreSpray(id, kept, given)
                 return false
             }
-            val attempt = Attempt(peer, token, latest.hopCount, latest.destinationId, now(), outgoing, given, kept)
+            val attempt = Attempt(peer, token, latest.hopCount, latest.destinationId, now(), outgoing, given, kept,
+                kind.takeUnless { resuming })
             synchronized(forwardingLock) {
                 if (!current()) return false
                 attempts[id] = attempt // Before write: immediate ACK/reject can resolve it.
@@ -383,16 +392,26 @@ class DeliveryEngine(
         val score = r.remoteEntries.find { it.deviceId == destination }?.predictability ?: 0.0
         return PredictabilityPolicy.age(score, r.receivedAt ?: now(), now())
     }
+    private fun firstSourceDeposit(message: Message, localScore: Double, peerScore: Double,
+        peer: String, session: String?): Boolean =
+        message.sourceId == localId && message.hopCount == 0 && message.destinationId != peer &&
+            message.copiesRemaining >= DtnConfig.INITIAL_SPRAY_COPIES && remoteReady(peer, session) &&
+            !PredictabilityPolicy.better(localScore, peerScore)
+
     private suspend fun routingDecision(message: Message, peer: String, session: String?): ForwardingKind? {
         val base = classify(message, localId, peer, now())
         if (base != null && base != ForwardingKind.DIRECT && !relayAllowed(message, peer, session)) return null
         if (!smartRelaySelection) return base
         val localScore = if (base == ForwardingKind.SPRAY) predictabilityStore?.predictability(message.destinationId, now()) ?: 0.0 else 0.0
         val peerScore = remoteScore(message.destinationId, peer, session)
-        val decision = PredictabilityPolicy.decide(base, localScore, peerScore, remoteReady(peer, session))
+        val exploratory = base == ForwardingKind.SPRAY &&
+            firstSourceDeposit(message, localScore, peerScore, peer, session)
+        val decision = if (exploratory) ForwardingKind.SPRAY else
+            PredictabilityPolicy.decide(base, localScore, peerScore, remoteReady(peer, session))
         val reason = when {
             base == null -> "invalid/expired/hop/status"
             base == ForwardingKind.DIRECT -> "final destination"
+            exploratory -> "first source relay; bounded initial deposit"
             base == ForwardingKind.WAIT -> "one-copy WAIT"
             !remoteReady(peer, session) -> "awaiting current routing summary"
             peerScore <= localScore -> "poor score"
@@ -528,7 +547,7 @@ class DeliveryEngine(
         val changed = if (final) store.relayDelivered(id, localId, peer, attempt.previousHop)
             else if (attempt.copiesGiven > 0) store.confirmSpray(id, peer, attempt.previousHop, attempt.copiesKept, attempt.copiesGiven)
             else store.replicated(id, peer, attempt.previousHop)
-        if (changed && attempt.copiesGiven > 0 && smartRelaySelection) metric(peer, session) { it.copy(smartAccepted = it.smartAccepted + 1) }
+        if (changed && attempt.copiesGiven > 0 && attempt.kind == ForwardingKind.SMART_SPRAY) metric(peer, session) { it.copy(smartAccepted = it.smartAccepted + 1) }
         if (changed) synchronized(forwardingLock) {
             if (matches(peer, session)) {
                 attempts.remove(id)
@@ -565,7 +584,7 @@ class DeliveryEngine(
         when (packet.type) {
             PacketType.MESSAGE -> {
                 val message = requireNotNull(packet.message)
-                if (message.contentType == MessageContentType.IMAGE) {
+                if (message.contentType != MessageContentType.TEXT) {
                     sendMediaReject(peerId, sessionId, message.messageId, MessageRejectReason.INVALID_MEDIA)
                     return
                 }
@@ -749,7 +768,7 @@ class DeliveryEngine(
                 val mediaId = requireNotNull(packet.mediaId)
                 val attempt = synchronized(forwardingLock) {
                     attempts[id]?.takeIf { it.peer == peerId && it.session == sessionId &&
-                        it.outgoing?.contentType == MessageContentType.IMAGE && it.outgoing.mediaId == mediaId }
+                        it.outgoing?.contentType != MessageContentType.TEXT && it.outgoing?.mediaId == mediaId }
                 } ?: return
                 val manifest = mediaStore?.manifest(id) ?: return
                 val missing = requireNotNull(packet.missingChunks)

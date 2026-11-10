@@ -11,7 +11,7 @@ import com.group16.dinoblog.model.Message
 import com.group16.dinoblog.model.Peer
 import com.group16.dinoblog.model.MediaEntity
 
-@Database(entities = [Message::class, Peer::class, DeliveryReceipt::class, DeliveryPredictability::class, MediaEntity::class], version = 8, exportSchema = true)
+@Database(entities = [Message::class, Peer::class, DeliveryReceipt::class, DeliveryPredictability::class, MediaEntity::class], version = 9, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class DinoblogDatabase : RoomDatabase() {
     abstract fun messages(): MessageDao
@@ -21,6 +21,14 @@ abstract class DinoblogDatabase : RoomDatabase() {
     abstract fun media(): MediaDao
 
     companion object {
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE media ADD COLUMN contentType TEXT NOT NULL DEFAULT 'IMAGE'")
+                db.execSQL("ALTER TABLE media ADD COLUMN durationMs INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE media ADD COLUMN width INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE media ADD COLUMN height INTEGER DEFAULT NULL")
+            }
+        }
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE messages ADD COLUMN contentType TEXT NOT NULL DEFAULT 'TEXT'")

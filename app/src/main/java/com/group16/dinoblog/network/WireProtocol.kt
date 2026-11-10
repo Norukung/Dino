@@ -78,14 +78,27 @@ object WireProtocol {
         require(entries.all { isUuid(it.deviceId) && it.predictability.isFinite() && it.predictability in 0.0..1.0 }) { "Invalid predictability metadata" }
     }
 
+    fun supportsMediaMime(type: MessageContentType, mime: String): Boolean = mime in when (type) {
+            MessageContentType.IMAGE -> setOf("image/jpeg", "image/png", "image/webp")
+            MessageContentType.AUDIO -> setOf("audio/mpeg", "audio/mp4", "audio/aac", "audio/ogg", "audio/wav", "audio/x-wav", "audio/3gpp")
+            MessageContentType.VIDEO -> setOf("video/mp4", "video/webm", "video/3gpp")
+            MessageContentType.TEXT -> emptySet()
+        }
+
     fun validateManifest(m: MediaManifest) {
         require(isUuid(m.messageId) && isUuid(m.mediaId)) { "Invalid media identity" }
-        require(m.mimeType in setOf("image/jpeg", "image/png", "image/webp")) { "Unsupported image MIME type" }
-        require(m.originalFileName.length in 1..100 && m.originalFileName.none { it.code < 32 || it.code == 127 || it == '/' || it == '\\' }) { "Unsafe image filename" }
-        require(m.fileSize in 1..DtnConfig.MAX_IMAGE_BYTES.toLong()) { "Invalid image size" }
-        require(m.sha256.matches(Regex("[0-9a-f]{64}"))) { "Invalid image SHA-256" }
+        require(supportsMediaMime(m.contentType, m.mimeType)) { "Unsupported media MIME type" }
+        require(m.originalFileName.length in 1..100 && m.originalFileName.none { Character.isISOControl(it) || it == '/' || it == '\\' }) { "Unsafe media filename" }
+        require(m.fileSize in 1..DtnConfig.maxMediaBytes(m.contentType).toLong()) { "Invalid media size" }
+        require(m.sha256.matches(Regex("[0-9a-f]{64}"))) { "Invalid media SHA-256" }
         require(m.chunkSize == DtnConfig.IMAGE_CHUNK_BYTES && m.totalChunks ==
-            ((m.fileSize + m.chunkSize - 1) / m.chunkSize).toInt()) { "Invalid image chunks" }
+            ((m.fileSize + m.chunkSize - 1) / m.chunkSize).toInt()) { "Invalid media chunks" }
+        require(m.durationMs == null || m.durationMs in 1..86_400_000L) { "Invalid media duration" }
+        require(m.width == null || m.width in 1..20_000) { "Invalid media width" }
+        require(m.height == null || m.height in 1..20_000) { "Invalid media height" }
+        require(m.width == null || m.height == null || m.width.toLong() * m.height <= 100_000_000L) { "Invalid media dimensions" }
+        require(m.contentType != MessageContentType.AUDIO || (m.durationMs != null && m.width == null && m.height == null)) { "Invalid audio metadata" }
+        require(m.contentType != MessageContentType.VIDEO || (m.durationMs != null && m.width != null && m.height != null)) { "Invalid video metadata" }
     }
 
     fun validate(packet: WirePacket) {
@@ -106,7 +119,8 @@ object WireProtocol {
                 require(isUuid(m.messageId) && isUuid(m.senderId) && isUuid(m.receiverId)) { "Invalid message IDs" }
                 require(when (m.contentType) {
                     MessageContentType.TEXT -> m.payload.isNotBlank() && m.payload.length <= MAX_PAYLOAD_CHARS && m.mediaId == null
-                    MessageContentType.IMAGE -> m.payload.isEmpty() && m.mediaId?.let(::isUuid) == true
+                    MessageContentType.IMAGE, MessageContentType.AUDIO, MessageContentType.VIDEO ->
+                        m.payload.isEmpty() && m.mediaId?.let(::isUuid) == true
                 }) { "Invalid message content" }
                 require(m.ttl in 1..MAX_TTL_SECONDS && m.timestamp > 0 && m.timestamp <= Long.MAX_VALUE - m.ttl * 1000) { "Invalid TTL/timestamp" }
                 require(m.expiresAt == m.createdAt + m.ttl * 1000) { "Invalid expiration" }
@@ -130,23 +144,23 @@ object WireProtocol {
                 require(packet.message == null) { "Rejection must not include payload" }
             }
             PacketType.MEDIA_MANIFEST -> {
-                val m = requireNotNull(packet.message) { "Missing image message" }
-                require(m.contentType == MessageContentType.IMAGE) { "Manifest requires IMAGE message" }
+                val m = requireNotNull(packet.message) { "Missing media message" }
+                require(m.contentType != MessageContentType.TEXT) { "Manifest requires media message" }
                 validate(packet.copy(type = PacketType.MESSAGE, manifest = null))
-                val media = requireNotNull(packet.manifest) { "Missing image manifest" }
+                val media = requireNotNull(packet.manifest) { "Missing media manifest" }
                 validateManifest(media)
-                require(media.messageId == m.messageId && media.mediaId == m.mediaId) { "Media/message identity mismatch" }
+                require(media.messageId == m.messageId && media.mediaId == m.mediaId && media.contentType == m.contentType) { "Media/message identity mismatch" }
             }
             PacketType.MEDIA_ACCEPT -> {
                 require(packet.messageId?.let(::isUuid) == true && packet.mediaId?.let(::isUuid) == true) { "Invalid media acceptance" }
                 val missing = requireNotNull(packet.missingChunks) { "Missing resume state" }
-                require(missing.size <= (DtnConfig.MAX_IMAGE_BYTES + DtnConfig.IMAGE_CHUNK_BYTES - 1) / DtnConfig.IMAGE_CHUNK_BYTES &&
+                require(missing.size <= (DtnConfig.MAX_MEDIA_BYTES + DtnConfig.IMAGE_CHUNK_BYTES - 1) / DtnConfig.IMAGE_CHUNK_BYTES &&
                     missing.distinct().size == missing.size && missing.all { it >= 0 }) { "Invalid resume indices" }
             }
             PacketType.MEDIA_CHUNK -> {
                 require(packet.messageId?.let(::isUuid) == true && packet.mediaId?.let(::isUuid) == true) { "Invalid chunk identity" }
                 require(packet.chunkIndex != null && packet.chunkIndex >= 0 && packet.chunkIndex <
-                    (DtnConfig.MAX_IMAGE_BYTES + DtnConfig.IMAGE_CHUNK_BYTES - 1) / DtnConfig.IMAGE_CHUNK_BYTES) { "Invalid chunk index" }
+                    (DtnConfig.MAX_MEDIA_BYTES + DtnConfig.IMAGE_CHUNK_BYTES - 1) / DtnConfig.IMAGE_CHUNK_BYTES) { "Invalid chunk index" }
                 require(packet.dataLength != null && packet.dataLength in 1..DtnConfig.IMAGE_CHUNK_BYTES &&
                     packet.binaryData?.size == packet.dataLength) { "Invalid chunk bytes" }
                 require(packet.message == null && packet.manifest == null) { "Chunk header contains bundle" }

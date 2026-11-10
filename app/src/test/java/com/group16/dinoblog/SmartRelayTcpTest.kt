@@ -39,6 +39,33 @@ class SmartRelayTcpTest {
             assertTrue(n.engine.predictability.value.remoteEntries.isEmpty())
         }
     }
+    @Test fun sourceCanDepositAtRelayWithUnknownOrPoorScoreAndRelayDelivers():Unit=runBlocking{
+        for(priorHistory in listOf(false,true)){
+        val clock=AtomicLong(1700000000000L);val a=Node(clock);val b=Node(clock);val c=Node(clock)
+        try{withTimeout(30000){
+            if(priorHistory){a.store.seed(c.id,0.7,clock.get());b.store.seed(c.id,0.1,clock.get())}
+            connect(b,a)
+            val message=a.engine.queue(c.id,"A to C through B",allowRelay=true)
+            b.store.messages.first{rows->rows.any{it.messageId==message.messageId&&it.status==MessageStatus.CARRIED}}
+            val carried=requireNotNull(b.store.get(message.messageId))
+            assertEquals(a.id,carried.sourceId)
+            assertEquals(c.id,carried.destinationId)
+            assertEquals(1,carried.hopCount)
+            assertEquals(2,carried.copiesRemaining)
+            assertEquals(0,a.engine.predictability.value.metrics.smartAccepted)
+            disconnect(a,b)
+            a.close()
+            connect(b,c)
+            c.store.receipts.first{rows->rows.any{it.originalMessageId==message.messageId}}
+            val delivered=requireNotNull(c.store.get(message.messageId))
+            assertEquals(MessageStatus.RECEIVED,delivered.status)
+            assertEquals(a.id,delivered.sourceId)
+            assertEquals(c.id,delivered.destinationId)
+            assertEquals(message.messageId,delivered.messageId)
+            assertEquals(2,delivered.hopCount)
+        }}finally{listOf(a,b,c).forEach{it.close()}}
+        }
+    }
     @Test fun poorFirstPeerIsSkippedThenGoodPeerGetsOneCopyAndDeliversOffline():Unit=runBlocking{
         val clock=AtomicLong(1700000000000L);val a=Node(clock);val b=Node(clock);val c=Node(clock);val d=Node(clock);val e=Node(clock)
         try{withTimeout(30000){

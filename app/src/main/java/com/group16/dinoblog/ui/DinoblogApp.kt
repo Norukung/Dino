@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.group16.dinoblog.util.Permissions
+import com.group16.dinoblog.model.MessageContentType
 import com.group16.dinoblog.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 
@@ -74,8 +75,8 @@ fun DinoblogApp(viewModel: AppViewModel) {
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val sending by viewModel.sending.collectAsStateWithLifecycle()
     val media by viewModel.media.collectAsStateWithLifecycle()
-    val selectedImage by viewModel.selectedImage.collectAsStateWithLifecycle()
-    val preparingImage by viewModel.preparingImage.collectAsStateWithLifecycle()
+    val selectedMedia by viewModel.selectedMedia.collectAsStateWithLifecycle()
+    val preparingMedia by viewModel.preparingMedia.collectAsStateWithLifecycle()
     val mediaProgress by viewModel.mediaProgress.collectAsStateWithLifecycle()
     var screen by rememberSaveable { mutableStateOf("home") }
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
@@ -90,7 +91,13 @@ fun DinoblogApp(viewModel: AppViewModel) {
         uri?.let(viewModel::saveProfileImage)
     }
     val chatPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        uri?.let(viewModel::selectImage)
+        uri?.let { viewModel.selectMedia(it, MessageContentType.IMAGE) }
+    }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let { viewModel.selectMedia(it, MessageContentType.VIDEO) }
+    }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.selectMedia(it, MessageContentType.AUDIO) }
     }
     val requestPermissions: () -> Unit = {
         if (Permissions.granted(context)) { permissionDenied = false; viewModel.startNetwork() }
@@ -150,11 +157,13 @@ fun DinoblogApp(viewModel: AppViewModel) {
                         { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) },
                         { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) })
                     "chat" -> ChatScreen(viewModel.localId, recipient, peers, socket, messages, media, mediaProgress, viewModel::mediaPath,
-                        selectedImage, preparingImage, draft, sending,
+                        viewModel::verifiedMedia, selectedMedia, preparingMedia, draft, sending,
                         allowRelay, viewModel::setAllowRelay,
                         viewModel::selectRecipient, viewModel::setDraft, viewModel::sendMessage,
                         { chatPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        viewModel::cancelImage, viewModel::sendImage,
+                        { videoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
+                        { audioPicker.launch("audio/*") },
+                        viewModel::cancelMedia, viewModel::sendMedia,
                         viewModel::savePeerAlias, viewModel::removePeerAlias)
                     "settings" -> SettingsScreen(profile, viewModel::saveDisplayName,
                         { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },

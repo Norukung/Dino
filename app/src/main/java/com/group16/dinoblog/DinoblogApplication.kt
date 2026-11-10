@@ -28,7 +28,7 @@ class AppContainer(application: Application) {
     val profile = ProfileRepository(application)
     val logger = NetworkLogger()
     private val database = Room.databaseBuilder(application, DinoblogDatabase::class.java, "dinoblog.db")
-        .addMigrations(DinoblogDatabase.MIGRATION_1_2, DinoblogDatabase.MIGRATION_2_3, DinoblogDatabase.MIGRATION_3_4, DinoblogDatabase.MIGRATION_4_5, DinoblogDatabase.MIGRATION_5_6, DinoblogDatabase.MIGRATION_6_7, DinoblogDatabase.MIGRATION_7_8).build()
+        .addMigrations(DinoblogDatabase.MIGRATION_1_2, DinoblogDatabase.MIGRATION_2_3, DinoblogDatabase.MIGRATION_3_4, DinoblogDatabase.MIGRATION_4_5, DinoblogDatabase.MIGRATION_5_6, DinoblogDatabase.MIGRATION_6_7, DinoblogDatabase.MIGRATION_7_8, DinoblogDatabase.MIGRATION_8_9).build()
     val repository = MessageRepository(database, logger) { profile.relayEnabled }
     val media = MediaRepository(database, MediaFileStore(application), repository, logger) { profile.relayEnabled }
     val transport = TcpTransport(identity.id, profile.displayName, scope, logger,

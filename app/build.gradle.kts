@@ -13,8 +13,8 @@ android {
         applicationId = "com.group16.dinoblog"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "3.2-relay-cleanup"
+        versionCode = 16
+        versionName = "3.3-media-dtn"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
@@ -49,6 +49,8 @@ dependencies {
     ksp("androidx.room:room-compiler:2.7.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-ui:1.11.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

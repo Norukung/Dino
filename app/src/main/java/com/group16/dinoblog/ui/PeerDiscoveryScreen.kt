@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import com.group16.dinoblog.model.NetworkState
 import com.group16.dinoblog.model.SocketState
+import com.group16.dinoblog.model.NearbyPeerLabels
+import com.group16.dinoblog.model.HardwareNames
 
 @Composable
 fun PeerDiscoveryScreen(network: NetworkState, socket: SocketState, connectedName: String, onDiscover: () -> Unit,
@@ -45,7 +47,12 @@ fun PeerDiscoveryScreen(network: NetworkState, socket: SocketState, connectedNam
         } }
         if (network.peers.isEmpty()) item { Text("No peers found. Move the phones closer and scan again.") }
         items(network.peers, key = { it.address }) { peer ->
-            InfoCard("Nearby DinoBlog device") {
+            val identified = socket.connected && network.connectedDeviceAddress == peer.address
+            InfoCard(NearbyPeerLabels.title(peer, network.connectedDeviceAddress.takeIf { identified }, connectedName)) {
+                Text(if (peer.name == HardwareNames.UNAVAILABLE) HardwareNames.UNAVAILABLE
+                    else if (identified) "Device: ${peer.name}" else "Device name")
+                Text("Wi-Fi Direct available")
+                if (!identified) Text("DinoBlog name not known yet", style = MaterialTheme.typography.bodySmall)
                 Text(if (peer.status == "Invited") "Invitation sent" else "Ready to connect")
                 Button(onClick = { onConnect(peer.address) }, enabled = !network.groupFormed && peer.status != "Invited") { Text("Connect") }
             }

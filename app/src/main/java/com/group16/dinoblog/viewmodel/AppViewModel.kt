@@ -9,7 +9,8 @@ import com.group16.dinoblog.DinoblogApplication
 import com.group16.dinoblog.network.WireProtocol
 import com.group16.dinoblog.dtn.DtnConfig
 import com.group16.dinoblog.model.DisplayNames
-import com.group16.dinoblog.repository.PreparedImage
+import com.group16.dinoblog.model.MessageContentType
+import com.group16.dinoblog.repository.PreparedMedia
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,6 +36,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val messages = app.repository.messages.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val media = app.media.media.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun mediaPath(mediaId: String) = app.media.filePath(mediaId)
+    suspend fun verifiedMedia(mediaId: String) = app.media.verifiedForPlayback(mediaId)
     val receipts = app.repository.receipts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val peers = app.repository.peers.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val preferences = application.getSharedPreferences("chat_preferences", Context.MODE_PRIVATE)
@@ -49,10 +51,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val notice = mutableNotice.asStateFlow()
     private val mutableSending = MutableStateFlow(false)
     val sending = mutableSending.asStateFlow()
-    private val mutableSelectedImage = MutableStateFlow<PreparedImage?>(null)
-    val selectedImage = mutableSelectedImage.asStateFlow()
-    private val mutablePreparingImage = MutableStateFlow(false)
-    val preparingImage = mutablePreparingImage.asStateFlow()
+    private val mutableSelectedMedia = MutableStateFlow<PreparedMedia?>(null)
+    val selectedMedia = mutableSelectedMedia.asStateFlow()
+    private val mutablePreparingMedia = MutableStateFlow(false)
+    val preparingMedia = mutablePreparingMedia.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -68,7 +70,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (mutableSending.value) return
         val target = id.trim()
         if (target == mutableRecipient.value) return
-        cancelImage()
+        cancelMedia()
         drafts[mutableRecipient.value] = mutableDraft.value
         mutableRecipient.value = target
         mutableDraft.value = drafts[target].orEmpty()
@@ -100,34 +102,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun removeProfileImage() = app.profile.removeImage()
 
-    fun selectImage(uri: Uri) {
-        if (mutableSending.value || mutablePreparingImage.value) return
+    fun selectMedia(uri: Uri, type: MessageContentType) {
+        if (type == MessageContentType.TEXT) return
+        if (mutableSending.value || mutablePreparingMedia.value) return
         val target = mutableRecipient.value
-        mutablePreparingImage.value = true
+        mutablePreparingMedia.value = true
         viewModelScope.launch {
             try {
-                val prepared = app.media.prepare(uri)
+                val prepared = app.media.prepare(uri, type)
                 if (target != mutableRecipient.value) {
                     app.media.discardPrepared(prepared)
                     return@launch
                 }
-                mutableSelectedImage.value?.let { app.media.discardPrepared(it) }
-                mutableSelectedImage.value = prepared
+                mutableSelectedMedia.value?.let { app.media.discardPrepared(it) }
+                mutableSelectedMedia.value = prepared
             } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { mutableNotice.value = "Could not use that image. Try a different picture." }
-            finally { mutablePreparingImage.value = false }
+            catch (error: Exception) { mutableNotice.value = error.message?.take(120) ?: "Could not use selected media." }
+            finally { mutablePreparingMedia.value = false }
         }
     }
 
-    fun cancelImage() {
-        val selected = mutableSelectedImage.value ?: return
-        mutableSelectedImage.value = null
+    fun cancelMedia() {
+        val selected = mutableSelectedMedia.value ?: return
+        mutableSelectedMedia.value = null
         viewModelScope.launch { app.media.discardPrepared(selected) }
     }
 
-    fun sendImage() {
-        val selected = mutableSelectedImage.value ?: return
-        if (mutableSending.value || mutablePreparingImage.value) return
+    fun sendMedia() {
+        val selected = mutableSelectedMedia.value ?: return
+        if (mutableSending.value || mutablePreparingMedia.value) return
         val receiverId = mutableRecipient.value
         if (!WireProtocol.isUuid(receiverId) || receiverId == localId) {
             mutableNotice.value = "Choose a person first."
@@ -136,8 +139,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         mutableSending.value = true
         viewModelScope.launch {
             try {
-                app.delivery.queueImage(receiverId, selected, allowRelay = mutableAllowRelay.value)
-                if (mutableSelectedImage.value == selected) mutableSelectedImage.value = null
+                app.delivery.queueMedia(receiverId, selected, allowRelay = mutableAllowRelay.value)
+                if (mutableSelectedMedia.value == selected) mutableSelectedMedia.value = null
             } catch (e: CancellationException) { throw e }
             catch (error: Exception) { mutableNotice.value = error.message?.take(100) ?: "Could not save media. Please try again." }
             finally { mutableSending.value = false }

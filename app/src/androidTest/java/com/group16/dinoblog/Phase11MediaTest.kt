@@ -35,6 +35,31 @@ class Phase11MediaTest {
     private fun id() = UUID.randomUUID().toString()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    @Test fun imageAndTextRowsSurviveMediaSchemaUpgrade() = runBlocking {
+        val name = "media-nine-${id()}.db"
+        val source = id(); val destination = id(); val textId = id(); val imageId = id(); val mediaId = id()
+        try {
+            migration.createDatabase(name, 8).use { db ->
+                db.execSQL("INSERT INTO messages(messageId,senderId,receiverId,payload,timestamp,ttl,status,expiresAt,hopCount,hopLimit,carrierId,copiesRemaining,reservedCopies,contentType,mediaId,reservedPeerId) VALUES (?,?,?,?,1000,60,'PENDING',61000,0,8,NULL,4,0,'TEXT',NULL,NULL)",
+                    arrayOf(textId, source, destination, "kept text"))
+                db.execSQL("INSERT INTO messages(messageId,senderId,receiverId,payload,timestamp,ttl,status,expiresAt,hopCount,hopLimit,carrierId,copiesRemaining,reservedCopies,contentType,mediaId,reservedPeerId) VALUES (?,?,?,?,1000,60,'RECEIVED',61000,1,8,NULL,4,0,'IMAGE',?,NULL)",
+                    arrayOf(imageId, source, destination, "", mediaId))
+                db.execSQL("INSERT INTO media(mediaId,messageId,sourceId,destinationId,mimeType,originalFileName,fileSize,sha256,chunkSize,totalChunks,receivedChunks,isComplete,createdAt,expiresAt,messageJson,lastUpdatedAt) VALUES (?,?,?,?,'image/jpeg','photo.jpg',3,?,131072,1,'1',1,1000,61000,'{}',1000)",
+                    arrayOf(mediaId, imageId, source, destination, "a".repeat(64)))
+            }
+            migration.runMigrationsAndValidate(name, 9, true, DinoblogDatabase.MIGRATION_8_9).close()
+            val db = Room.databaseBuilder(context, DinoblogDatabase::class.java, name).build()
+            try {
+                assertEquals("kept text", db.messages().get(textId)?.payload)
+                assertEquals(MessageContentType.IMAGE, db.messages().get(imageId)?.contentType)
+                val row = db.media().get(mediaId)!!
+                assertEquals(MessageContentType.IMAGE, row.contentType)
+                assertEquals(null, row.durationMs)
+                assertTrue(row.isComplete)
+            } finally { db.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
     @Test fun phaseTenDatabaseUpgradesWithoutLosingPayloadReceiptOrPredictability() = runBlocking {
         val name = "phase11-${id()}.db"; val a = id(); val b = id(); val message = id()
         try {
@@ -44,7 +69,7 @@ class Phase11MediaTest {
                 db.execSQL("INSERT INTO delivery_receipts(originalMessageId,sourceId,destinationId,deliveredAt,originalExpiresAt,createdByDeviceId) VALUES (?,?,?,2000,61000,?)", arrayOf(message, a, b, b))
                 db.execSQL("INSERT INTO delivery_predictabilities(destinationDeviceId,predictability,lastUpdatedAt) VALUES (?,0.75,1000)", arrayOf(b))
             }
-            migration.runMigrationsAndValidate(name, 8, true, DinoblogDatabase.MIGRATION_7_8).close()
+            migration.runMigrationsAndValidate(name, 9, true, DinoblogDatabase.MIGRATION_7_8, DinoblogDatabase.MIGRATION_8_9).close()
             val db = Room.databaseBuilder(context, DinoblogDatabase::class.java, name).build()
             try {
                 assertEquals("kept text", db.messages().get(message)?.payload)
@@ -122,7 +147,8 @@ class Phase11MediaTest {
             assertEquals(MediaChunkResult.Reject(MessageRejectReason.INVALID_MEDIA),
                 enabled.receiveChunk(message.messageId, mediaId, 0, byteArrayOf(1, 2, 3), local, now, 100))
             assertNull(messages.get(message.messageId))
-            assertFalse(db.media().get(mediaId)!!.isComplete)
+            assertNull(db.media().get(mediaId))
+            assertFalse(files.partFile(mediaId).exists())
         } finally { files.delete(mediaId); db.close() }
     }
 

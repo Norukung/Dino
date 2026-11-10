@@ -94,9 +94,9 @@ class MessageRepository(private val db: DinoblogDatabase, private val logger: Ne
             require(known == null || known.matches(message)) { "Receipt/message identity conflict" }
             val existing = db.messages().get(message.messageId)
             require(existing == null || DeliveryEngine.sameBundle(existing, message)) { "Conflicting duplicate" }
-            if (message.contentType == MessageContentType.IMAGE) {
+            if (message.contentType != MessageContentType.TEXT) {
                 val media = db.media().forMessage(message.messageId)
-                require(media != null && media.mediaId == message.mediaId && media.isComplete) { "Image is not verified" }
+                require(media != null && media.mediaId == message.mediaId && media.contentType == message.contentType && media.isComplete) { "Media is not verified" }
             }
             if (known != null) return@withTransaction false
             if (existing == null) {

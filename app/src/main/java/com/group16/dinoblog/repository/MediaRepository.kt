@@ -38,8 +38,11 @@ class MediaRepository(
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     override val media: Flow<List<MediaEntity>> = db.media().observeAll()
     override fun filePath(mediaId: String) = files.finalFile(mediaId).absolutePath
+    override suspend fun verifiedForPlayback(mediaId: String): Boolean = withContext(Dispatchers.IO) {
+        db.media().get(mediaId)?.takeIf { it.isComplete }?.let { files.verified(it.manifest()) } == true
+    }
 
-    override suspend fun prepare(uri: Uri): PreparedImage = withContext(Dispatchers.IO) { files.prepare(uri) }
+    override suspend fun prepare(uri: Uri, type: MessageContentType): PreparedMedia = withContext(Dispatchers.IO) { files.prepare(uri, type) }
     override suspend fun discardPrepared(prepared: PreparedImage) = withContext(Dispatchers.IO) {
         if (db.media().get(prepared.manifest.mediaId) == null) files.delete(prepared.manifest.mediaId)
     }
@@ -50,7 +53,7 @@ class MediaRepository(
         require(withContext(Dispatchers.IO) { files.verified(prepared.manifest) }) { "Prepared image is unavailable" }
         val message = Message(UUID.randomUUID().toString(), source, destination, "", at, ttl,
             MessageStatus.PENDING, hopLimit = hopLimit, copiesRemaining = copies,
-            contentType = MessageContentType.IMAGE, mediaId = prepared.manifest.mediaId)
+            contentType = prepared.manifest.contentType, mediaId = prepared.manifest.mediaId)
         val manifest = prepared.manifest.copy(messageId = message.messageId)
         WireProtocol.validate(WirePacket(PacketType.MEDIA_MANIFEST, message = message, manifest = manifest))
         val row = entity(message, manifest, "1".repeat(manifest.totalChunks), true, at)
@@ -64,8 +67,7 @@ class MediaRepository(
 
     override suspend fun manifest(messageId: String): MediaManifest? {
         val row = db.media().forMessage(messageId) ?: return null
-        if (!row.isComplete || !files.finalFile(row.mediaId).isFile ||
-            files.finalFile(row.mediaId).length() != row.fileSize) return null
+        if (!row.isComplete || !withContext(Dispatchers.IO) { files.verified(row.manifest()) }) return null
         return row.manifest()
     }
 
@@ -75,9 +77,9 @@ class MediaRepository(
 
     override suspend fun offer(message: Message, manifest: MediaManifest, localId: String,
         at: Long, relayLimit: Int): MediaOffer = lock.withLock {
-        if (manifest.mimeType !in setOf("image/jpeg", "image/png", "image/webp"))
+        if (!WireProtocol.supportsMediaMime(manifest.contentType, manifest.mimeType))
             return@withLock MediaOffer.Reject(MessageRejectReason.UNSUPPORTED_MEDIA)
-        if (manifest.fileSize > DtnConfig.MAX_IMAGE_BYTES)
+        if (manifest.fileSize > DtnConfig.maxMediaBytes(manifest.contentType))
             return@withLock MediaOffer.Reject(MessageRejectReason.MEDIA_TOO_LARGE)
         val valid = runCatching { WireProtocol.validate(WirePacket(PacketType.MEDIA_MANIFEST,
             message = message, manifest = manifest)) }.isSuccess
@@ -165,9 +167,9 @@ class MediaRepository(
         db.media().update(updated)
         if (updated.completedChunks < updated.totalChunks) return@withLock MediaChunkResult.Progress(updated.completedChunks, updated.totalChunks)
         if (!withContext(Dispatchers.IO) { files.finish(updated.manifest()) }) {
-            files.partFile(mediaId).delete()
-            db.media().update(updated.copy(receivedChunks = "0".repeat(updated.totalChunks)))
-            logger.log("DTN", "DTN MEDIA HASH FAILED mediaId=$mediaId", messageId)
+            files.delete(mediaId)
+            db.media().delete(mediaId)
+            logger.log("DTN", "DTN MEDIA VERIFICATION FAILED mediaId=$mediaId; incomplete transfer removed", messageId)
             return@withLock MediaChunkResult.Reject(MessageRejectReason.INVALID_MEDIA)
         }
         val message = json.decodeFromString<Message>(updated.messageJson)
@@ -197,8 +199,10 @@ class MediaRepository(
             val receipt = messages.receipt(row.messageId) != null
             val message = messages.get(row.messageId)
             val blocked = message?.let { it.hopCount >= it.hopLimit } == true
+            val emptyAndIdle = !row.isComplete && row.completedChunks == 0 &&
+                at - row.lastUpdatedAt >= DtnConfig.EMPTY_MEDIA_PART_TIMEOUT_MS
             if ((relay && (receipt || at >= row.expiresAt || blocked || (row.isComplete && message == null))) ||
-                (!row.isComplete && (receipt || at >= row.expiresAt))) {
+                (!row.isComplete && (receipt || at >= row.expiresAt || emptyAndIdle))) {
                 files.delete(row.mediaId)
                 db.media().delete(row.mediaId)
                 logger.log("DTN", "DTN MEDIA PAYLOAD RECLAIMED mediaId=${row.mediaId}", row.messageId)
@@ -225,8 +229,10 @@ class MediaRepository(
                             messages.commitReceived(stored, receipt, localId, at, DtnConfig.MAX_RELAY_BUFFER_MESSAGES)
                         }
                     }.onFailure { logger.log("DTN", "DTN MEDIA RECOVERY PENDING mediaId=${row.mediaId}", row.messageId) }
-                } else if (!files.partFile(row.mediaId).exists() && row.receivedChunks.contains('1')) {
-                    db.media().update(row.copy(receivedChunks = "0".repeat(row.totalChunks), lastUpdatedAt = at))
+                } else if (!files.partFile(row.mediaId).exists()) {
+                    // Nothing remains to resume. A future manifest can create a fresh row.
+                    files.delete(row.mediaId)
+                    db.media().delete(row.mediaId)
                 }
             }
         }
@@ -245,5 +251,6 @@ class MediaRepository(
         MediaEntity(manifest.mediaId, message.messageId, message.sourceId, message.destinationId,
             manifest.mimeType, manifest.originalFileName, manifest.fileSize, manifest.sha256,
             manifest.chunkSize, manifest.totalChunks, bits, complete, message.createdAt,
-            message.expiresAt, json.encodeToString(message), at)
+            message.expiresAt, json.encodeToString(message), at,
+            manifest.contentType, manifest.durationMs, manifest.width, manifest.height)
 }

@@ -10,6 +10,7 @@ import com.group16.dinoblog.network.WirePacket
 import com.group16.dinoblog.network.WireProtocol
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -22,6 +23,51 @@ class WireProtocolTest {
     private fun packet(payload: String = "สวัสดี 🦖\nhello") = WirePacket(PacketType.MESSAGE, message = Message(
         UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
         payload, 1_700_000_000_000, 86_400, MessageStatus.PENDING))
+
+    @Test fun `audio and video share manifest and binary chunk protocol`() {
+        for ((type, mime) in listOf(MessageContentType.AUDIO to "audio/mpeg", MessageContentType.VIDEO to "video/mp4")) {
+            val mediaId = UUID.randomUUID().toString()
+            val message = Message(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
+                UUID.randomUUID().toString(), "", 1_700_000_000_000, 86_400, MessageStatus.PENDING,
+                hopCount = 1, contentType = type, mediaId = mediaId)
+            val manifest = MediaManifest(message.messageId, mediaId, mime, "full-name.media", 131_073,
+                "a".repeat(64), DtnConfig.IMAGE_CHUNK_BYTES, 2, type, 1_000,
+                if (type == MessageContentType.VIDEO) 320 else null,
+                if (type == MessageContentType.VIDEO) 240 else null)
+            val packet = WirePacket(PacketType.MEDIA_MANIFEST, message = message, manifest = manifest)
+            val stream = ByteArrayOutputStream()
+            WireProtocol.write(DataOutputStream(stream), packet)
+            assertEquals(packet, WireProtocol.read(DataInputStream(ByteArrayInputStream(stream.toByteArray()))))
+            val chunk = WirePacket(PacketType.MEDIA_CHUNK, messageId = message.messageId,
+                mediaId = mediaId, chunkIndex = 0, dataLength = 3, binaryData = byteArrayOf(0, 1, -1))
+            val chunkStream = ByteArrayOutputStream()
+            WireProtocol.write(DataOutputStream(chunkStream), chunk)
+            val decoded = WireProtocol.read(DataInputStream(ByteArrayInputStream(chunkStream.toByteArray())))
+            assertTrue(decoded.binaryData!!.contentEquals(chunk.binaryData!!))
+        }
+    }
+
+    @Test fun `media type size and filename conflicts are rejected before chunks`() {
+        val id = UUID.randomUUID().toString()
+        val audio = Message(id, UUID.randomUUID().toString(), UUID.randomUUID().toString(), "",
+            1_700_000_000_000, 60, MessageStatus.PENDING, contentType = MessageContentType.AUDIO,
+            mediaId = UUID.randomUUID().toString())
+        val manifest = MediaManifest(id, audio.mediaId!!, "audio/mpeg", "audio.mp3",
+            DtnConfig.MAX_AUDIO_BYTES.toLong() + 1, "a".repeat(64), DtnConfig.IMAGE_CHUNK_BYTES,
+            (DtnConfig.MAX_AUDIO_BYTES / DtnConfig.IMAGE_CHUNK_BYTES) + 1,
+            MessageContentType.AUDIO, 1_000)
+        assertThrows(IllegalArgumentException::class.java) {
+            WireProtocol.encode(WirePacket(PacketType.MEDIA_MANIFEST, message = audio, manifest = manifest))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            WireProtocol.encode(WirePacket(PacketType.MEDIA_MANIFEST, message = audio,
+                manifest = manifest.copy(fileSize = 3, totalChunks = 1, originalFileName = "../audio.mp3")))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            WireProtocol.encode(WirePacket(PacketType.MEDIA_MANIFEST, message = audio,
+                manifest = manifest.copy(fileSize = 3, totalChunks = 1, contentType = MessageContentType.VIDEO)))
+        }
+    }
 
     @Test fun `unicode and consecutive frames survive one byte TCP fragments`() {
         val first = packet()

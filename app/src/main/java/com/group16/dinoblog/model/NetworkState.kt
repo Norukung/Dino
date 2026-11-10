@@ -5,6 +5,7 @@ data class NetworkState(
     val wifiEnabled: Boolean = false,
     val discovering: Boolean = false,
     val peers: List<DiscoveredPeer> = emptyList(),
+    val connectedDeviceAddress: String? = null,
     val groupFormed: Boolean = false,
     val isGroupOwner: Boolean = false,
     val groupOwnerIp: String? = null,

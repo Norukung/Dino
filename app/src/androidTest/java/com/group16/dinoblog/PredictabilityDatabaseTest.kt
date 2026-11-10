@@ -29,7 +29,7 @@ class PredictabilityDatabaseTest {
                 db.execSQL("INSERT INTO delivery_receipts (originalMessageId,sourceId,destinationId,deliveredAt,originalExpiresAt,createdByDeviceId) VALUES (?,?,?,2000,61000,?)",arrayOf(msg,source,dest,dest))
                 db.execSQL("INSERT INTO peers (deviceId,name,lastSeen) VALUES (?,'Phone',1000)",arrayOf(dest))
             }
-            migration.runMigrationsAndValidate(name, 8, true,DinoblogDatabase.MIGRATION_4_5,DinoblogDatabase.MIGRATION_5_6,DinoblogDatabase.MIGRATION_6_7,DinoblogDatabase.MIGRATION_7_8).close()
+            migration.runMigrationsAndValidate(name, 9, true,DinoblogDatabase.MIGRATION_4_5,DinoblogDatabase.MIGRATION_5_6,DinoblogDatabase.MIGRATION_6_7,DinoblogDatabase.MIGRATION_7_8,DinoblogDatabase.MIGRATION_8_9).close()
             val db=Room.databaseBuilder(ctx,DinoblogDatabase::class.java,name).build()
             try{
                 assertTrue(db.predictabilities().all().isEmpty());assertEquals(2,db.messages().get(msg)!!.copiesRemaining)

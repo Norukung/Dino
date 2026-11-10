@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.group16.dinoblog.model.DiscoveredPeer
+import com.group16.dinoblog.model.HardwareNames
 import com.group16.dinoblog.model.NetworkState
 import com.group16.dinoblog.util.NetworkLogger
 import com.group16.dinoblog.util.Permissions
@@ -104,7 +105,8 @@ class WifiDirectManager(
     fun connect(address: String) = guarded {
         groupSuppressed = false
         val config = WifiP2pConfig().apply { deviceAddress = address }
-        mutableState.update { it.copy(wifiStatus = "Connecting; accept the invitation on the other phone", error = null) }
+        mutableState.update { it.copy(wifiStatus = "Connecting; accept the invitation on the other phone", error = null,
+            connectedDeviceAddress = address) }
         manager?.connect(channel, config, action("Connection requested"))
     }
 
@@ -132,9 +134,15 @@ class WifiDirectManager(
         val token = generation
         manager?.requestPeers(channel) { list ->
             if (!registered || token != generation) return@requestPeers
-            mutableState.update { state -> state.copy(peers = list.deviceList.map {
-                DiscoveredPeer(it.deviceName.ifBlank { "Android device" }, it.deviceAddress, peerStatus(it.status))
-            }.sortedBy { it.name }) }
+            mutableState.update { state ->
+                val peers = list.deviceList.map {
+                    DiscoveredPeer(HardwareNames.normalize(it.deviceName) ?: HardwareNames.UNAVAILABLE,
+                        it.deviceAddress, peerStatus(it.status))
+                }.sortedWith(compareBy<DiscoveredPeer> { it.name }.thenBy { it.address })
+                val connected = state.connectedDeviceAddress ?: peers.filter { it.status == "Connected" }
+                    .singleOrNull()?.address
+                state.copy(peers = peers, connectedDeviceAddress = connected)
+            }
         }
     }
 
@@ -152,7 +160,8 @@ class WifiDirectManager(
 
     private fun clearConnection() {
         transport.stop()
-        mutableState.update { it.copy(groupFormed = false, isGroupOwner = false, groupOwnerIp = null) }
+        mutableState.update { it.copy(groupFormed = false, isGroupOwner = false, groupOwnerIp = null,
+            connectedDeviceAddress = null) }
     }
 
     private inline fun guarded(block: () -> Unit) {

@@ -8,11 +8,15 @@ import android.graphics.Color
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.StatFs
+import android.provider.OpenableColumns
 import com.group16.dinoblog.dtn.DtnConfig
 import com.group16.dinoblog.model.MediaManifest
+import com.group16.dinoblog.model.MessageContentType
+import com.group16.dinoblog.network.WireProtocol
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -76,16 +80,24 @@ class MediaFileStore(private val context: Context) {
     fun finish(media: MediaManifest): Boolean {
         val partial = partFile(media.mediaId)
         if (!partial.isFile || partial.length() != media.fileSize || sha256(partial) != media.sha256) return false
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(partial.absolutePath, bounds)
-        if (bounds.outWidth !in 1..20_000 || bounds.outHeight !in 1..20_000 ||
-            bounds.outWidth.toLong() * bounds.outHeight > 100_000_000L) return false
+        if (media.contentType == MessageContentType.IMAGE) {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(partial.absolutePath, bounds)
+            if (bounds.outWidth !in 1..20_000 || bounds.outHeight !in 1..20_000 ||
+                bounds.outWidth.toLong() * bounds.outHeight > 100_000_000L) return false
+        } else if (runCatching { metadata(partial, media.contentType) }.isFailure) {
+            return false
+        }
+        // Duration and dimensions are display metadata. Android media parsers can
+        // report different values for identical bytes on different OS versions.
+        // A playable track is still required, but exact metadata equality is not.
         val final = finalFile(media.mediaId)
         if (final.exists()) final.delete()
         return partial.renameTo(final)
     }
 
-    fun prepare(uri: Uri): PreparedImage {
+    fun prepare(uri: Uri, type: MessageContentType = MessageContentType.IMAGE): PreparedImage {
+        if (type != MessageContentType.IMAGE) return prepareStreamed(uri, type)
         val resolver = context.contentResolver
         val mime = resolver.getType(uri)
         require(mime in setOf("image/jpeg", "image/png", "image/webp")) { "Choose a JPEG, PNG or WebP image" }
@@ -116,6 +128,76 @@ class MediaFileStore(private val context: Context) {
             } catch (e: Exception) { temp.delete(); final.delete(); throw e }
             finally { opaque.recycle() }
         } finally { bitmap.recycle() }
+    }
+
+    private fun prepareStreamed(uri: Uri, type: MessageContentType): PreparedImage {
+        require(type == MessageContentType.AUDIO || type == MessageContentType.VIDEO)
+        val resolver = context.contentResolver
+        val mime = resolver.getType(uri)?.lowercase() ?: error("Media type unavailable")
+        require(WireProtocol.supportsMediaMime(type, mime)) { "Unsupported ${type.name.lowercase()} format" }
+        val limit = DtnConfig.maxMediaBytes(type).toLong()
+        val tooLarge = if (type == MessageContentType.VIDEO) "Video is too large for nearby DTN delivery." else "Audio is too large for nearby DTN delivery."
+        val mediaId = UUID.randomUUID().toString()
+        val temp = partFile(mediaId)
+        val final = finalFile(mediaId)
+        try {
+            val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) null else {
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex) && cursor.getLong(sizeIndex) > limit) error(tooLarge)
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0 && !cursor.isNull(nameIndex)) cursor.getString(nameIndex) else null
+                }
+            }?.map { if (Character.isISOControl(it) || it == '/' || it == '\\') ' ' else it }
+                ?.joinToString("")?.trim()?.take(100)?.takeIf { it.isNotBlank() }
+                ?: if (type == MessageContentType.AUDIO) "audio" else "video"
+            val copied = resolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(temp).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var count = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        count += read
+                        require(count <= limit) { tooLarge }
+                        output.write(buffer, 0, read)
+                    }
+                    output.fd.sync()
+                    count
+                }
+            } ?: error("Could not read selected media")
+            require(copied > 0) { "Selected media is empty" }
+            val details = metadata(temp, type)
+            val manifest = MediaManifest("", mediaId, mime, name, copied, sha256(temp),
+                DtnConfig.IMAGE_CHUNK_BYTES, ((copied + DtnConfig.IMAGE_CHUNK_BYTES - 1) / DtnConfig.IMAGE_CHUNK_BYTES).toInt(),
+                type, details.first, details.second, details.third)
+            WireProtocol.validateManifest(manifest.copy(messageId = UUID.randomUUID().toString()))
+            require(temp.renameTo(final)) { "Could not save media" }
+            return PreparedImage(manifest, final.absolutePath)
+        } catch (e: Exception) { temp.delete(); final.delete(); throw e }
+    }
+
+    private fun metadata(file: File, type: MessageContentType): Triple<Long, Int?, Int?> {
+        val retriever = MediaMetadataRetriever()
+        try {
+            FileInputStream(file).use { input ->
+                retriever.setDataSource(input.fd)
+                val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                    ?.takeIf { it in 1..86_400_000L } ?: error("Cannot read media duration")
+                val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
+                if (type == MessageContentType.AUDIO) {
+                    require(!hasVideo) { "Selected file contains video" }
+                    return Triple(duration, null, null)
+                }
+                require(hasVideo) { "Selected file has no video track" }
+                val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+                    ?.takeIf { it in 1..20_000 } ?: error("Cannot read video width")
+                val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+                    ?.takeIf { it in 1..20_000 } ?: error("Cannot read video height")
+                require(width.toLong() * height <= 100_000_000L) { "Video dimensions are too large" }
+                return Triple(duration, width, height)
+            }
+        } finally { retriever.release() }
     }
 
     private fun decodeSampled(uri: Uri): Bitmap {
